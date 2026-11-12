@@ -5,11 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 from sqlalchemy import select
 from mini_blog.images import imagekit
-from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
-import os
-import shutil
-import uuid
-import tempfile
+import logging
+import imagekitio
+
 
 
 @asynccontextmanager
@@ -17,49 +15,40 @@ async def lifespan(app: FastAPI):
     await create_db_and_table()
     yield
 
+logger = logging.getLogger(__name__)
 
 app = FastAPI(lifespan=lifespan)
-
 @app.post("/upload")
 async def upload_file(
-        file: UploadFile = File(...),
-        caption: str = Form(""),
-        session: AsyncSession = Depends(get_async_session)
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    session: AsyncSession = Depends(get_async_session),
 ):
-    temp_file_path = None
+    file_bytes = await file.read()
 
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splittext(file.filename)[1]) as temp_file:
-            temp_file_path = temp_file.name
-            shutil.copyfileobj(file.file, temp_file)
-        upload_result = imagekit.upload_file(
-            file=open(temp_file_path, "rb"),
+        result = await imagekit.files.upload(
+            file=file_bytes,
             file_name=file.filename,
-            options=UploadFileRequestOptions(
-                use_unique_file_name=True,
-                tags=["backend-upload"]
-            )
+            use_unique_file_name=True,
+            tags=["backend-upload"],
         )
-        if upload_result.response.http_status_code == 200:
+    except imagekitio.APIError:
+        logger.exception("ImageKit upload failed")
+        raise HTTPException(status_code=502, detail="Image upload failed")
 
-            post = Post(
-                caption=caption,
-                url="dummy_yrl",
-                file_type="photo",
-                file_name="dummy_name"
-            )
-        session.add(post)
-        await session.commit()
-        await session.refresh(post)
-        return post
+    is_video = (file.content_type or "").startswith("video/")
+    post = Post(
+        caption=caption,
+        url=result.url,
+        file_type="video" if is_video else "image",
+        file_name=result.name,
+    )
+    session.add(post)
+    await session.commit()
+    await session.refresh(post)
+    return post
     
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally :
-        if temp_file_path and os.path.exists(temp_file_path):
-
-            os.unlink(temp_file_path)
-        file.file.close()
 
 @app.get("/feed")
 async def get_feed(
