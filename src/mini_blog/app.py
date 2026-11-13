@@ -8,7 +8,7 @@ from mini_blog.images import imagekit
 import logging
 import imagekitio
 import uuid
-
+from mini_blog.users import auth_backend, current_active_user, fastapi_users
 
 
 @asynccontextmanager
@@ -19,6 +19,8 @@ async def lifespan(app: FastAPI):
 logger = logging.getLogger(__name__)
 
 app = FastAPI(lifespan=lifespan)
+
+app.include_router(fastapi_users.get_auth_router(auth_backend), prefix="/auth/jwt", tags=["auth"])
 @app.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
