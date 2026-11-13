@@ -10,11 +10,11 @@ class PostReturn(BaseModel):
     title: str
     content: str
 
-class UserRead(schemas.BaseUser(uuid.UUID)):
+class UserRead(schemas.BaseUser[uuid.UUID]):
     pass
 
 class UserCreate(schemas.BaseUserCreate):
     pass
 
-class UssserUpdate(schemas.BaseUserUpdate):
+class UserUpdate(schemas.BaseUserUpdate):
     pass
