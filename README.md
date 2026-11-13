@@ -2,5 +2,7 @@
 A FastAPI mini blog
 
 ```python
-uv run streamlit frontend.py
+uvicorn src.mini_blog.app:app --reload --host 0.0.0.0 --port 8000
+
+uv run streamlit run frontend.py
 ```
